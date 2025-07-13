@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# This script monitors journalctl for warnings and logs them to a CSV file.
+
+LOG_FILE="/home/constantin/.health_bar/health_log.csv"
+
+# Clear the log file on start
+echo "count,warning,category,level,solution,ignore" > "$LOG_FILE"
+
+# Continuously monitor journalctl for new warnings
+journalctl -f -p 4 | while read -r line; do
+  # Extract the warning message
+  warning=$(echo "$line" | sed -e 's/^[a-zA-Z0-9_[:space:]:]*:[[:space:]]*//')
+
+  # Normalize the warning
+  normalized_warning=$(echo "$warning" | sed -E 's/[0-9]+/[NUMBER]/g')
+
+  # Check if the warning already exists in the log
+  if grep -qF "$normalized_warning" "$LOG_FILE"; then
+    # If it exists, increment the count
+    awk -F, -v warning="\"$normalized_warning\"" 'BEGIN {OFS=","} {if ($2 == warning) $1++; print}' "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+  else
+    # If it doesn't exist, add it to the log
+    echo "1,\"$normalized_warning\",0,0,no_solution,0" >> "$LOG_FILE"
+  fi
+done

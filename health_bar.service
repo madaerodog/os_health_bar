@@ -1,0 +1,10 @@
+[Unit]
+Description=Health Bar monitoring service
+
+[Service]
+ExecStart=/usr/local/bin/health_monitor.sh
+Restart=always
+User=constantin
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,63 @@
+This document outlines the functionality of the Health Bar application.
+
+- The application is installed via a shell script (`install.sh`).
+
+- A systemd service (`health_bar.service`) is installed to start at boot. It monitors `journalctl` for messages of "warning" priority (level 4) and higher.
+
+- The service maintains its own log, a CSV file located at `~/.health_bar/health_log.csv`. This log is cleared and re-initialized each time the service starts (typically on reboot).
+
+- The CSV has the following structure: `count,warning,category,level,solution,ignore`.
+
+- When a warning is found, it is first "normalized" by replacing all numerical digits with the placeholder `[NUMBER]`. This allows similar errors to be grouped together.
+
+- If a normalized warning already exists in the log, its `count` is incremented. Otherwise, it is added as a new row with a count of 1.
+
+- The `category`, `level`, `solution`, and `ignore` fields are included in the log with default values (`0`, `0`, `no_solution`, `0` respectively) for future development.
+
+- In the notification zone of the linux system I want an icon for the app that is green health bar and allows to be clicked. here is the plan for it bellow:
+
+Yes, creating a system tray icon with a menu for your application is absolutely possible and a great way to improve its user interface.
+
+
+  However, this cannot be done with shell scripting alone. Shell scripts are designed for command-line operations, not for creating graphical user interface (GUI) elements like tray icons. To achieve this, we will
+  need to use a different technology.
+
+
+  My recommendation is to use Python with the PyGObject library, which allows us to use GTK+, the toolkit used by many Linux desktops (like GNOME, XFCE, and others). This is a standard and reliable way to create tray
+   icons on Linux.
+
+  Here is my proposed plan to implement this feature:
+
+  The Plan
+
+
+   1. Create a Python Script (`tray_app.py`):
+       * This new script will be responsible for creating and managing the tray icon and its menu.
+       * It will use the libappindicator library (via PyGObject) to ensure compatibility with modern desktop environments.
+       * The script will be independent of your current health_monitor.sh script.
+
+
+   2. Design a Simple Icon:
+       * Every tray application needs an icon. I will create a simple, clean SVG (Scalable Vector Graphics) icon for the application. An SVG is a good choice because it's a text-based image format that scales
+         perfectly to any size.
+
+
+   3. Define Menu Functionality:
+       * The menu that appears when you click the icon will have the following options:
+           * View Logs: This will open the health_log.csv file in the default application (e.g., your system's spreadsheet viewer or text editor).
+           * Restart Monitoring Service: This will execute the command to restart the health_bar service, which might be useful for debugging.
+           * Quit: This will close the tray icon application.
+
+
+   4. Update the Installer (`install.sh`):
+       * The installer script will be updated to:
+           * Install the new Python dependencies required for the GUI application (python3-gi, gir1.2-appindicator3-0.1).
+           * Copy the new tray_app.py script and the icon.svg file to appropriate system locations.
+           * Create a .desktop file in the user's autostart directory (~/.config/autostart/). This will ensure the tray icon application starts automatically when you log in.
+
+
+  This approach separates the background monitoring (which remains a systemd service) from the user-facing tray icon (which is a user-level application). This is a robust and standard way to build this kind of
+  utility.
+ 
+
+
