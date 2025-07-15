@@ -2,7 +2,7 @@
 
 OS Health Bar is a lightweight system monitoring utility for Linux desktops. It keeps an eye on your system's journal for warnings and displays a persistent "health bar" in your system tray, giving you an at-a-glance overview of your system's stability.
 
-![Health Bar Icon](health_bar_icon.svg)
+![Health Bar Screenshot](screenshot.png)
 
 ## Features
 

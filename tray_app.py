@@ -113,8 +113,8 @@ def main():
     # Store the current icon path for cleanup
     indicator.current_icon_path = icon_path
     
-    # Set initial label with error count
-    update_indicator_label(indicator, total_errors)
+    # Set initial label with health value
+    update_indicator_label(indicator, health_value)
     
     # Set initial menu
     indicator.set_menu(build_menu(log_file_path))
@@ -163,12 +163,9 @@ def get_total_error_count(log_file_path):
         print(f"Error reading log file: {e}")
         return 0
 
-def update_indicator_label(indicator, error_count):
-    """Update the indicator label with the error count"""
-    if error_count > 0:
-        indicator.set_label(f"{error_count}", "")
-    else:
-        indicator.set_label("", "")
+def update_indicator_label(indicator, health_value):
+    """Update the indicator label with the current health value"""
+    indicator.set_label(f"{health_value} HP", "")
 
 def update_indicator(indicator, log_file_path):
     """Periodic callback to update the indicator"""
@@ -199,7 +196,7 @@ def update_indicator(indicator, log_file_path):
     indicator.current_icon_path = new_icon_path
     
     # Update label
-    update_indicator_label(indicator, total_errors)
+    update_indicator_label(indicator, health_value)
     
     # Only update menu if it's not currently open
     if not menu_is_open:
