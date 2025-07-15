@@ -32,6 +32,8 @@ if [ "$1" = "-remove" ]; then
     # Remove user files
     echo "Removing user files..."
     rm -f "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
+    rm -f "$ACTUAL_HOME/.health_bar/web_server.py"
+    rm -f "$ACTUAL_HOME/.health_bar/index.html"
     rm -f "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
     rm -f "$ACTUAL_HOME/.config/autostart/health-bar-tray.desktop"
     
@@ -93,16 +95,23 @@ mkdir -p "$ACTUAL_HOME/.config/autostart"
 
 # Remove old files first to ensure clean replacement
 rm -f "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
+rm -f "$ACTUAL_HOME/.health_bar/web_server.py"
+rm -f "$ACTUAL_HOME/.health_bar/index.html"
 rm -f "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
 
 # Copy the tray app and icon to the actual user's home
 cp tray_app.py "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
 chmod +x "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
+cp web_server.py "$ACTUAL_HOME/.health_bar/web_server.py"
+cp index.html "$ACTUAL_HOME/.health_bar/index.html"
 cp health_bar_icon.svg "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
 
 # Set proper ownership
 chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
 chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
+chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.health_bar/web_server.py"
+chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.health_bar/index.html"
+chmod +x "$ACTUAL_HOME/.health_bar/web_server.py"
 
 # Clean up any temporary icon files that might be cached
 rm -f /tmp/tmp*.svg /tmp/tmp*.png 2>/dev/null || true

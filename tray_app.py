@@ -220,6 +220,11 @@ def build_menu(log_file_path):
     item_view_logs.connect('activate', lambda a: view_logs(log_file_path))
     menu.append(item_view_logs)
 
+    # Menu Item: View Logs in Browser
+    item_view_browser = Gtk.MenuItem(label='View Logs in Browser')
+    item_view_browser.connect('activate', view_logs_in_browser)
+    menu.append(item_view_browser)
+
     # Menu Item: Restart Service
     item_restart = Gtk.MenuItem(label='Restart Monitoring Service')
     item_restart.connect('activate', restart_service)
@@ -291,7 +296,48 @@ def open_about(widget):
             except FileNotFoundError:
                 pass
 
+def view_logs_in_browser(widget):
+    # Use a direct path to the installed web server script
+    web_server_script = os.path.expanduser('~/.health_bar/web_server.py')
+    log_dir = os.path.expanduser('~/.health_bar')
+    server_log_file = os.path.join(log_dir, 'web_server.log')
+    pid_file = os.path.join(log_dir, 'server.pid')
+
+    # Start the web server as a background process
+    try:
+        # Check if a server is already running on that port
+        with open(pid_file, 'r') as f:
+            pid = int(f.read())
+        os.kill(pid, 0) # Check if process exists by sending signal 0
+    except (IOError, OSError): # Includes FileNotFoundError, ProcessLookupError
+        # Start a new server, redirecting stdout/stderr to a log file
+        with open(server_log_file, 'w') as log_f:
+            server_process = subprocess.Popen(
+                ['python3', web_server_script],
+                stdout=log_f,
+                stderr=subprocess.STDOUT
+            )
+        with open(pid_file, 'w') as f:
+            f.write(str(server_process.pid))
+
+    # Open the browser
+    url = 'http://localhost:8088'
+    try:
+        subprocess.Popen(['xdg-open', url])
+    except Exception as e:
+        print(f"Failed to open browser: {e}")
+
 def quit_app(_):
+    # Clean up server.pid if it exists
+    pid_file = os.path.expanduser('~/.health_bar/server.pid')
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file, 'r') as f:
+                pid = int(f.read())
+                os.kill(pid, signal.SIGTERM)
+            os.remove(pid_file)
+        except (IOError, OSError) as e:
+            pass # Ignore errors if pid not found or file is missing
     Gtk.main_quit()
 
 if __name__ == "__main__":
