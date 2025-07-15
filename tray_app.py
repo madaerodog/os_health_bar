@@ -9,17 +9,19 @@ import signal
 import subprocess
 import csv
 import tempfile
+import base64
 
 APPINDICATOR_ID = 'health-bar-app'
 MAX_HEALTH = 100
 menu_is_open = False
+VERSION = "1.1.3"  # Version for debugging
 
 def generate_health_bar_svg(health_value, unique_errors):
     """Generate an SVG health bar with current health value and number"""
     # Calculate percentage (each unique error reduces health by 1)
     percentage = max(0, min(100, health_value)) / 100.0
     
-    # Create SVG with health bar and text
+    # Create SVG with health bar and text - no background for transparency
     svg_content = f'''<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
     <!-- Background (gray) -->
     <rect width="15.875" height="4.2333" x=".52917" y="6.35" fill="#e0e0e0" stroke="#333" stroke-width=".1"/>
@@ -34,12 +36,57 @@ def generate_health_bar_svg(health_value, unique_errors):
     <text x="8.4665" y="13" text-anchor="middle" font-family="sans-serif" font-size="2.5" fill="#666">{unique_errors} errors</text>
 </svg>'''
     
-    # Write to temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False) as f:
-        f.write(svg_content)
-        return f.name
+    # Write SVG to temporary file
+    svg_file = tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False)
+    svg_file.write(svg_content)
+    svg_file.close()
+    
+    # Convert SVG to PNG with transparent background
+    png_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+    png_file.close()
+    
+    try:
+        # Try to convert SVG to PNG with transparent background using rsvg-convert
+        # Use better parameters for GdkPixbuf compatibility
+        result = subprocess.run([
+            'rsvg-convert', 
+            '-w', '64', 
+            '-h', '64', 
+            '-b', 'rgba(0,0,0,0)', 
+            '-f', 'png', 
+            '-o', png_file.name, 
+            svg_file.name
+        ], check=True, capture_output=True)
+        
+        # Verify the PNG file was created successfully and has content
+        if os.path.exists(png_file.name) and os.path.getsize(png_file.name) > 100:  # Should be at least 100 bytes
+            os.unlink(svg_file.name)  # Clean up SVG file
+            return png_file.name
+        else:
+            # PNG creation failed, fallback to SVG
+            os.unlink(png_file.name)  # Clean up failed PNG file
+            return svg_file.name
+            
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        # Fallback to SVG if conversion fails
+        try:
+            os.unlink(png_file.name)  # Clean up PNG file
+        except:
+            pass
+        return svg_file.name
+
+def cleanup_old_icon(icon_path):
+    """Cleanup old icon files with proper error handling"""
+    try:
+        if os.path.exists(icon_path):
+            os.unlink(icon_path)
+    except:
+        pass
+    return False  # Don't repeat the timer
 
 def main():
+    print(f"Health Bar Tray v{VERSION} starting...")
+    
     # Define the path to the log file
     log_file_path = os.path.expanduser('~/.health_bar/health_log.csv')
     
@@ -138,10 +185,13 @@ def update_indicator(indicator, log_file_path):
     # Update icon using set_icon_full to avoid deprecation warning
     indicator.set_icon_full(new_icon_path, "Health Bar Status")
     
-    # Clean up old icon file
+    # Clean up old icon file (but wait a bit to ensure it's not still being used)
     if hasattr(indicator, 'current_icon_path') and os.path.exists(indicator.current_icon_path):
         try:
-            os.unlink(indicator.current_icon_path)
+            # Don't immediately delete, let the system process it first
+            old_path = indicator.current_icon_path
+            # Schedule deletion after a delay
+            GLib.timeout_add_seconds(10, lambda: cleanup_old_icon(old_path))
         except:
             pass
     
@@ -181,6 +231,11 @@ def build_menu(log_file_path):
     # Separator
     menu.append(Gtk.SeparatorMenuItem())
 
+    # Menu Item: About Health Bar
+    item_about = Gtk.MenuItem(label='About Health Bar')
+    item_about.connect('activate', open_about)
+    menu.append(item_about)
+
     # Menu Item: Quit
     item_quit = Gtk.MenuItem(label='Quit')
     item_quit.connect('activate', quit_app)
@@ -215,14 +270,29 @@ def view_logs(log_file_path):
 def restart_service(_):
     # Restart the systemd service
     try:
-        subprocess.run(['systemctl', '--user', 'restart', 'health_bar.service'], check=True)
+        # The service is a system service, so it needs sudo.
+        subprocess.run(['sudo', 'systemctl', 'restart', 'health_bar.service'], check=True)
     except Exception as e:
-        # Fallback for system-wide service
-        try:
-            subprocess.run(['sudo', 'systemctl', 'restart', 'health_bar.service'], check=True)
-        except Exception as e_sudo:
-            print(f"Error restarting service: {e_sudo}")
+        print(f"Error restarting service: {e}")
 
+
+def open_about(widget):
+    # Open the GitHub repository in the default browser
+    url = 'https://github.com/madaerodog/os_health_bar'
+    
+    try:
+        # Try using subprocess.Popen to detach the process
+        subprocess.Popen(['xdg-open', url])
+    except FileNotFoundError:
+        try:
+            # Fallback to firefox
+            subprocess.Popen(['firefox', url])
+        except FileNotFoundError:
+            try:
+                # Fallback to chrome
+                subprocess.Popen(['google-chrome', url])
+            except FileNotFoundError:
+                pass
 
 def quit_app(_):
     Gtk.main_quit()

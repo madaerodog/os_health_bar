@@ -1,3 +1,4 @@
 <svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
+ <!-- Health bar -->
  <rect width="15.875" height="4.2333" x=".52917" y="6.35" fill="#4caf50" stroke-width=".26458"/>
 </svg>
