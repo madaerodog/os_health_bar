@@ -16,64 +16,85 @@ MAX_HEALTH = 100
 menu_is_open = False
 VERSION = "1.1.3"  # Version for debugging
 
-def generate_health_bar_svg(health_value, unique_errors):
-    """Generate an SVG health bar with current health value and number"""
-    # Calculate percentage (each unique error reduces health by 1)
+ICON_FULL_HEALTH = os.path.expanduser('~/.local/share/icons/icon_full_health.png')
+ICON_DAMAGE = os.path.expanduser('~/.local/share/icons/icon_damage.png')
+
+def generate_health_bar_overlay_svg(health_value):
+    """Generate an SVG for only the health bar overlay."""
     percentage = max(0, min(100, health_value)) / 100.0
     
-    # Create SVG with health bar and text - no background for transparency
-    svg_content = f'''<svg width="64" height="64" version="1.1" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
-    <!-- Background (gray) -->
-    <rect width="15.875" height="4.2333" x=".52917" y="6.35" fill="#e0e0e0" stroke="#333" stroke-width=".1"/>
-    
-    <!-- Health bar (green, proportional to health) -->
-    <rect width="{15.875 * percentage}" height="4.2333" x=".52917" y="6.35" fill="#4caf50" stroke-width=".26458"/>
-    
-    <!-- Health value text -->
-    <text x="8.4665" y="4.5" text-anchor="middle" font-family="sans-serif" font-size="3.5" fill="#333">{health_value}</text>
-    
-    <!-- Unique errors text (small, below bar) -->
-    <text x="8.4665" y="13" text-anchor="middle" font-family="sans-serif" font-size="2.5" fill="#666">{unique_errors} errors</text>
+    # Dimensions for the health bar within the 64x64 icon
+    # Based on visual inspection, the bar is roughly at x=7, y=50, width=50, height=8
+    # SVG units are 16.933 / 64 = 0.264578125 mm/px
+    # So, for a 64x64 icon, 1px = 0.26458mm
+    # x=7px -> 1.852mm
+    # y=50px -> 13.229mm
+    # width=50px -> 13.229mm
+    # height=8px -> 2.116mm
+
+    # Using a viewBox that matches the 64x64 pixel dimensions directly for simplicity
+    # and then scaling the internal elements.
+    # The health bar itself is 50px wide and 8px high, positioned at (7, 50) on a 64x64 canvas.
+    bar_width_px = 50 * percentage
+    bar_height_px = 8
+    bar_x_px = 7
+    bar_y_px = 50
+
+    svg_content = f'''<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <rect x="{bar_x_px}" y="{bar_y_px}" width="{bar_width_px}" height="{bar_height_px}" fill="#4caf50"/>
 </svg>'''
     
-    # Write SVG to temporary file
     svg_file = tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False)
     svg_file.write(svg_content)
     svg_file.close()
+    return svg_file.name
+
+def compose_icon(base_icon_path, health_value):
+    """Composes the health bar onto the base icon and returns the path to the composite PNG."""
+    health_bar_svg_path = generate_health_bar_overlay_svg(health_value)
     
-    # Convert SVG to PNG with transparent background
-    png_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-    png_file.close()
+    # Convert health bar SVG to PNG
+    health_bar_png_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+    health_bar_png_file.close()
     
     try:
-        # Try to convert SVG to PNG with transparent background using rsvg-convert
-        # Use better parameters for GdkPixbuf compatibility
-        result = subprocess.run([
+        subprocess.run([
             'rsvg-convert', 
             '-w', '64', 
             '-h', '64', 
             '-b', 'rgba(0,0,0,0)', 
             '-f', 'png', 
-            '-o', png_file.name, 
-            svg_file.name
+            '-o', health_bar_png_file.name, 
+            health_bar_svg_path
         ], check=True, capture_output=True)
-        
-        # Verify the PNG file was created successfully and has content
-        if os.path.exists(png_file.name) and os.path.getsize(png_file.name) > 100:  # Should be at least 100 bytes
-            os.unlink(svg_file.name)  # Clean up SVG file
-            return png_file.name
-        else:
-            # PNG creation failed, fallback to SVG
-            os.unlink(png_file.name)  # Clean up failed PNG file
-            return svg_file.name
-            
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        # Fallback to SVG if conversion fails
-        try:
-            os.unlink(png_file.name)  # Clean up PNG file
-        except:
-            pass
-        return svg_file.name
+    except Exception as e:
+        print(f"Error converting health bar SVG to PNG: {e}")
+        return base_icon_path # Fallback
+    finally:
+        os.unlink(health_bar_svg_path)
+
+    # Composite the health bar PNG onto the base icon PNG
+    composite_png_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+    composite_png_file.close()
+
+    # The health bar is positioned at (7, 50) on the 64x64 base image
+    geometry_offset = "+7+50"
+
+    try:
+        subprocess.run([
+            'convert',
+            base_icon_path,
+            health_bar_png_file.name,
+            '-geometry', geometry_offset,
+            '-composite',
+            composite_png_file.name
+        ], check=True, capture_output=True)
+        return composite_png_file.name
+    except Exception as e:
+        print(f"Error compositing icons: {e}")
+        return base_icon_path # Fallback
+    finally:
+        os.unlink(health_bar_png_file.name)
 
 def cleanup_old_icon(icon_path):
     """Cleanup old icon files with proper error handling"""
@@ -103,8 +124,11 @@ def main():
     total_errors = get_total_error_count(log_file_path)
     health_value = MAX_HEALTH - unique_errors
     
-    # Generate initial icon
-    icon_path = generate_health_bar_svg(health_value, unique_errors)
+    # Determine base icon
+    base_icon = ICON_FULL_HEALTH if unique_errors == 0 else ICON_DAMAGE
+    
+    # Generate initial composite icon
+    icon_path = compose_icon(base_icon, health_value)
     
     # Create the indicator
     indicator = AppIndicator3.Indicator.new(APPINDICATOR_ID, icon_path, AppIndicator3.IndicatorCategory.APPLICATION_STATUS)
@@ -176,8 +200,11 @@ def update_indicator(indicator, log_file_path):
     total_errors = get_total_error_count(log_file_path)
     health_value = MAX_HEALTH - unique_errors
     
-    # Generate new icon
-    new_icon_path = generate_health_bar_svg(health_value, unique_errors)
+    # Determine base icon
+    base_icon = ICON_FULL_HEALTH if unique_errors == 0 else ICON_DAMAGE
+
+    # Generate new composite icon
+    new_icon_path = compose_icon(base_icon, health_value)
     
     # Update icon using set_icon_full to avoid deprecation warning
     indicator.set_icon_full(new_icon_path, "Health Bar Status")
@@ -217,18 +244,8 @@ def build_menu(log_file_path):
     unique_errors = get_error_count(log_file_path)
     total_errors = get_total_error_count(log_file_path)
     item_view_logs = Gtk.MenuItem(label=f'View Logs ({total_errors} total, {unique_errors} unique)')
-    item_view_logs.connect('activate', lambda a: view_logs(log_file_path))
+    item_view_logs.connect('activate', view_logs_in_browser)
     menu.append(item_view_logs)
-
-    # Menu Item: View Logs in Browser
-    item_view_browser = Gtk.MenuItem(label='View Logs in Browser')
-    item_view_browser.connect('activate', view_logs_in_browser)
-    menu.append(item_view_browser)
-
-    # Menu Item: Restart Service
-    item_restart = Gtk.MenuItem(label='Restart Monitoring Service')
-    item_restart.connect('activate', restart_service)
-    menu.append(item_restart)
 
     # Separator
     menu.append(Gtk.SeparatorMenuItem())
@@ -269,14 +286,6 @@ def view_logs(log_file_path):
     except Exception as e:
         print(f"Error opening log file with gedit: {e}")
 
-def restart_service(_):
-    # Restart the systemd service
-    try:
-        # The service is a system service, so it needs sudo.
-        subprocess.run(['sudo', 'systemctl', 'restart', 'health_bar.service'], check=True)
-    except Exception as e:
-        print(f"Error restarting service: {e}")
-
 
 def open_about(widget):
     # Open the GitHub repository in the default browser
@@ -297,30 +306,7 @@ def open_about(widget):
                 pass
 
 def view_logs_in_browser(widget):
-    # Use a direct path to the installed web server script
-    web_server_script = os.path.expanduser('~/.health_bar/web_server.py')
-    log_dir = os.path.expanduser('~/.health_bar')
-    server_log_file = os.path.join(log_dir, 'web_server.log')
-    pid_file = os.path.join(log_dir, 'server.pid')
-
-    # Start the web server as a background process
-    try:
-        # Check if a server is already running on that port
-        with open(pid_file, 'r') as f:
-            pid = int(f.read())
-        os.kill(pid, 0) # Check if process exists by sending signal 0
-    except (IOError, OSError): # Includes FileNotFoundError, ProcessLookupError
-        # Start a new server, redirecting stdout/stderr to a log file
-        with open(server_log_file, 'w') as log_f:
-            server_process = subprocess.Popen(
-                ['python3', web_server_script],
-                stdout=log_f,
-                stderr=subprocess.STDOUT
-            )
-        with open(pid_file, 'w') as f:
-            f.write(str(server_process.pid))
-
-    # Open the browser
+    # Open the browser to the web server address
     url = 'http://localhost:8088'
     try:
         subprocess.Popen(['xdg-open', url])
@@ -328,16 +314,6 @@ def view_logs_in_browser(widget):
         print(f"Failed to open browser: {e}")
 
 def quit_app(_):
-    # Clean up server.pid if it exists
-    pid_file = os.path.expanduser('~/.health_bar/server.pid')
-    if os.path.exists(pid_file):
-        try:
-            with open(pid_file, 'r') as f:
-                pid = int(f.read())
-                os.kill(pid, signal.SIGTERM)
-            os.remove(pid_file)
-        except (IOError, OSError) as e:
-            pass # Ignore errors if pid not found or file is missing
     Gtk.main_quit()
 
 if __name__ == "__main__":

@@ -23,7 +23,13 @@ OS Health Bar is a lightweight system monitoring utility for Linux desktops. It 
 
 ## Installation
 
-To install and start the service, run the installer script with `sudo`:
+To install and start the service, you can run the following command directly from your terminal:
+
+```bash
+curl -sL https://raw.githubusercontent.com/madaerodog/os_health_bar/main/install.sh | sudo bash
+```
+
+Alternatively, you can clone the repository and run the installer script with `sudo`:
 
 ```bash
 sudo ./install.sh

@@ -34,7 +34,10 @@ if [ "$1" = "-remove" ]; then
     rm -f "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
     rm -f "$ACTUAL_HOME/.health_bar/web_server.py"
     rm -f "$ACTUAL_HOME/.health_bar/index.html"
+    rm -f "$ACTUAL_HOME/.health_bar/log_processor.py"
     rm -f "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
+    rm -f "$ACTUAL_HOME/.local/share/icons/icon_full_health.png"
+    rm -f "$ACTUAL_HOME/.local/share/icons/icon_damage.png"
     rm -f "$ACTUAL_HOME/.config/autostart/health-bar-tray.desktop"
     
     # Ask before removing user data directory
@@ -69,7 +72,7 @@ ACTUAL_HOME=$(eval echo ~$ACTUAL_USER)
 
 # Install required Python dependencies and SVG conversion tool
 apt-get update
-apt-get install -y python3-gi gir1.2-appindicator3-0.1 gir1.2-gtk-3.0 librsvg2-bin
+apt-get install -y python3-gi gir1.2-appindicator3-0.1 gir1.2-gtk-3.0 librsvg2-bin imagemagick
 
 # Stop any running tray applications first
 echo "Stopping any running tray applications..."
@@ -77,6 +80,7 @@ pkill -f "health_bar_tray.py" 2>/dev/null || true
 sleep 2
 
 # Create the .health_bar directory and log file in the actual user's home
+rm -rf "$ACTUAL_HOME/.health_bar"
 mkdir -p "$ACTUAL_HOME/.health_bar"
 touch "$ACTUAL_HOME/.health_bar/health_log.csv"
 echo "count,warning,category,level,solution,ignore" > "$ACTUAL_HOME/.health_bar/health_log.csv"
@@ -84,6 +88,7 @@ chown -R $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.health_bar"
 
 # Copy the monitoring script to /usr/local/bin
 cp health_monitor.sh /usr/local/bin/health_monitor.sh
+chmod +x /usr/local/bin/health_monitor.sh
 
 # Copy the systemd service file to /etc/systemd/system
 cp health_bar.service /etc/systemd/system/health_bar.service
@@ -97,21 +102,31 @@ mkdir -p "$ACTUAL_HOME/.config/autostart"
 rm -f "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
 rm -f "$ACTUAL_HOME/.health_bar/web_server.py"
 rm -f "$ACTUAL_HOME/.health_bar/index.html"
+rm -f "$ACTUAL_HOME/.health_bar/log_processor.py"
 rm -f "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
+rm -f "$ACTUAL_HOME/.local/share/icons/icon_full_health.png"
+rm -f "$ACTUAL_HOME/.local/share/icons/icon_damage.png"
 
 # Copy the tray app and icon to the actual user's home
 cp tray_app.py "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
 chmod +x "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
 cp web_server.py "$ACTUAL_HOME/.health_bar/web_server.py"
+chmod +x "$ACTUAL_HOME/.health_bar/web_server.py"
 cp index.html "$ACTUAL_HOME/.health_bar/index.html"
+cp log_processor.py "$ACTUAL_HOME/.health_bar/log_processor.py"
+chmod +x "$ACTUAL_HOME/.health_bar/log_processor.py"
 cp health_bar_icon.svg "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
+cp icon_full_health.png "$ACTUAL_HOME/.local/share/icons/icon_full_health.png"
+cp icon_damage.png "$ACTUAL_HOME/.local/share/icons/icon_damage.png"
 
 # Set proper ownership
 chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.local/share/icons/health_bar_icon.svg"
+chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.local/share/icons/icon_full_health.png"
+chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.local/share/icons/icon_damage.png"
 chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.local/bin/health_bar_tray.py"
 chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.health_bar/web_server.py"
 chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.health_bar/index.html"
-chmod +x "$ACTUAL_HOME/.health_bar/web_server.py"
+chown $ACTUAL_USER:$ACTUAL_USER "$ACTUAL_HOME/.health_bar/log_processor.py"
 
 # Clean up any temporary icon files that might be cached
 rm -f /tmp/tmp*.svg /tmp/tmp*.png 2>/dev/null || true

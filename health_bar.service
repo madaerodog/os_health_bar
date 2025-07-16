@@ -1,8 +1,11 @@
 [Unit]
 Description=Health Bar monitoring service
+After=network.target
 
 [Service]
+ExecStartPre=/bin/bash -c "fuser -k 8088/tcp || true; python3 /home/constantin/.health_bar/web_server.py &> /home/constantin/.health_bar/web_server.log & echo $! > /home/constantin/.health_bar/server.pid"
 ExecStart=/usr/local/bin/health_monitor.sh
+ExecStopPost=/bin/bash -c "if [ -f /home/constantin/.health_bar/server.pid ]; then kill $(cat /home/constantin/.health_bar/server.pid); rm /home/constantin/.health_bar/server.pid; fi; sleep 1"
 Restart=always
 User=constantin
 

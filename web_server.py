@@ -4,11 +4,16 @@ import socketserver
 import json
 import csv
 import os
+import re
 
 PORT = 8088
 LOG_FILE = os.path.expanduser("~/.health_bar/health_log.csv")
 
 class HealthBarHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+        return super().end_headers()
+
     def do_GET(self):
         if self.path == '/':
             self.path = 'index.html'
@@ -30,10 +35,13 @@ class HealthBarHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     next(reader)  # Skip header row
                     for row in reader:
                         if not row: continue
+                        # Use regex to remove [NUMBER] from the message
+                        message = re.sub(r'\[NUMBER\]', '', row[2]).strip()
+                        
                         logs.append({
                             "count": row[0],
                             "timestamp": row[1],
-                            "message": row[2]
+                            "message": message
                         })
         except Exception as e:
             print(f"Error reading log file: {e}")
